@@ -128,4 +128,9 @@ public class TaskConfiguration {
     public ClusterBrokerAutoUpdateTask clusterBrokerAutoUpdateTask() {
         return new ClusterBrokerAutoUpdateTask();
     }
+
+    @Bean
+    public AutoSubscribeConsumerTask autoSubscribeConsumerTask() {
+        return new AutoSubscribeConsumerTask();
+    }
 }

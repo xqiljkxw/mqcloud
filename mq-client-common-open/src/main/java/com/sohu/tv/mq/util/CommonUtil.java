@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 public class CommonUtil {
 
@@ -104,17 +106,13 @@ public class CommonUtil {
      * @param role
      * @return
      */
-    public static Result<ClusterInfoDTO> fetchClusterInfo(String mqCloudDomain, String topic, String group, int role) {
+    public static Result<ClusterInfoDTO> fetchClusterInfo(String mqCloudDomain, Map<String, String> params) {
         long start = System.currentTimeMillis();
         List<String> paramValues = new ArrayList<>();
-        paramValues.add("topic");
-        paramValues.add(topic);
-        paramValues.add("group");
-        paramValues.add(group);
-        paramValues.add("role");
-        paramValues.add(String.valueOf(role));
-        paramValues.add("v");
-        paramValues.add(Version.get());
+        for (Entry<String, String> entry : params.entrySet()) {
+            paramValues.add(entry.getKey());
+            paramValues.add(entry.getValue());
+        }
         Result<ClusterInfoDTO> result = new Result<>(true);
         // 从MQCLoud拉取配置信息
         try {
@@ -132,11 +130,9 @@ public class CommonUtil {
                     return result;
                 } else {
                     if (clusterInfoDTOResult.getStatus() == 201) {
-                        logger.warn("please register your {}:{} topic:{} in MQCloud!", role == 1 ? "producer"
-                                : "consumer", group, topic);
+                        logger.warn("please register in MQCloud!, params:{}", params);
                     } else {
-                        logger.warn("fetch topic:{} group:{} cluster info err:{}", topic, group,
-                                clusterInfoDTOResult.getMessage());
+                        logger.warn("fetch cluster info err:{}, params:{}", clusterInfoDTOResult.getMessage(), params);
                     }
                 }
             } else {
@@ -144,8 +140,7 @@ public class CommonUtil {
                 logger.error("http connection err: code:{}, info:{}", response.code, response.content);
             }
         } catch (Throwable e) {
-            logger.error("http err, domain:{},topic:{},group:{},use:{}ms", mqCloudDomain, topic, group,
-                    (System.currentTimeMillis() - start), e);
+            logger.error("domain:{} use:{}ms, params:{}", mqCloudDomain, (System.currentTimeMillis() - start), params, e);
             result.setSuccess(false);
             result.setException(e);
         }

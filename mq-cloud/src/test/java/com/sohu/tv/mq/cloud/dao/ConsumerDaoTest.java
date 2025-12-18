@@ -13,6 +13,8 @@ import com.sohu.tv.mq.cloud.Application;
 import com.sohu.tv.mq.cloud.bo.Consumer;
 import com.sohu.tv.mq.cloud.service.ClusterService;
 
+import static com.sohu.tv.mq.util.Constant.BROADCAST;
+
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = Application.class)
 public class ConsumerDaoTest {
@@ -26,7 +28,7 @@ public class ConsumerDaoTest {
     @Test
     public void testInsert() {
         Consumer consumer = new Consumer();
-        consumer.setConsumeWay(Consumer.BROADCAST);
+        consumer.setConsumeWay(BROADCAST);
         consumer.setName("api-vrs-topic-test-consumer");
         consumer.setTid(1);
         consumerDao.insert(consumer);

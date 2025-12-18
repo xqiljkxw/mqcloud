@@ -20,6 +20,9 @@ public class TopicUserParam {
     // 角色
     @Range(min = 1, max = 2)
     private int role;
+
+    // 消费方式: 0-集群消费 1-广播消费
+    private int consumeWay;
     
     private String v;
     
@@ -53,8 +56,23 @@ public class TopicUserParam {
     public void setV(String v) {
         this.v = v;
     }
+
+    public int getConsumeWay() {
+        return consumeWay;
+    }
+
+    public void setConsumeWay(int consumeWay) {
+        this.consumeWay = consumeWay;
+    }
+
     @Override
     public String toString() {
-        return "TopicUserParam [topic=" + topic + ", group=" + group + ", role=" + role + ", v=" + v + "]";
+        return "TopicUserParam{" +
+                "topic='" + topic + '\'' +
+                ", group='" + group + '\'' +
+                ", role=" + role +
+                ", consumeWay=" + consumeWay +
+                ", v='" + v + '\'' +
+                '}';
     }
 }

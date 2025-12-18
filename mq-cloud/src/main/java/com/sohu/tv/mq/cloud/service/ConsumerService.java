@@ -21,6 +21,7 @@ import org.apache.rocketmq.client.exception.MQBrokerException;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.common.MQVersion;
 import org.apache.rocketmq.common.MixAll;
+import org.apache.rocketmq.common.TopicConfig;
 import org.apache.rocketmq.common.constant.PermName;
 import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.remoting.exception.RemotingException;
@@ -34,19 +35,24 @@ import org.apache.rocketmq.remoting.protocol.heartbeat.MessageModel;
 import org.apache.rocketmq.remoting.protocol.route.BrokerData;
 import org.apache.rocketmq.remoting.protocol.route.QueueData;
 import org.apache.rocketmq.remoting.protocol.route.TopicRouteData;
+import org.apache.rocketmq.remoting.protocol.subscription.SubscriptionGroupConfig;
 import org.apache.rocketmq.tools.admin.DefaultMQAdminExt;
 import org.apache.rocketmq.tools.admin.MQAdminExt;
 import org.apache.rocketmq.tools.command.CommandUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 import java.util.Map.Entry;
+
+import static com.sohu.tv.mq.util.Constant.BROADCAST;
 
 /**
  * consumer服务
@@ -83,6 +89,9 @@ public class ConsumerService {
 
     @Autowired
     private AlarmConfigService alarmConfigService;
+
+    @Autowired
+    private ApplicationContext context;
 
     /**
      * 保存Consumer记录
@@ -558,10 +567,12 @@ public class ConsumerService {
             if (count == null || count != 1) {
                 return Result.getResult(Status.DB_ERROR);
             }
-            // 第二步：删除UserConsumer
-            Integer deleteCount = userConsumerDao.deleteByConsumerId(consumer.getId());
-            if (deleteCount == null) {
-                return Result.getResult(Status.DB_ERROR);
+            if (uid > 0) {
+                // 第二步：删除UserConsumer
+                Integer deleteCount = userConsumerDao.deleteByConsumerId(consumer.getId());
+                if (deleteCount == null) {
+                    return Result.getResult(Status.DB_ERROR);
+                }
             }
             // 第三步：真实删除consumer(为了防止误删，只有线上环境才能删除)
             Result<?> result = deleteConsumerOnCluster(mqCluster, consumer.getName());
@@ -923,7 +934,7 @@ public class ConsumerService {
                         }
                         Consumer consumer = new Consumer();
                         if (conn != null && MessageModel.BROADCASTING == conn.getMessageModel()) {
-                            consumer.setConsumeWay(Consumer.BROADCAST);
+                            consumer.setConsumeWay(BROADCAST);
                         }
                         consumer.setName(group);
                         consumer.setTid(topic.getId());
@@ -1256,5 +1267,130 @@ public class ConsumerService {
                 return cluster;
             }
         });
+    }
+
+    /**
+     * 创建consumer
+     */
+    @Transactional
+    public Result<?> createConsumer(Cluster cluster, Consumer consumer, UserConsumer userConsumer) {
+        try {
+            // 第一步：创建消费者记录
+            Integer count = consumerDao.insert(consumer);
+            // 第二步：创建用户消费者关联关系
+            if (count != null && count > 0 && consumer.getId() > 0 && userConsumer != null) {
+                userConsumer.setConsumerId(consumer.getId());
+                userConsumerDao.insert(userConsumer);
+            }
+            // 第三步：真实创建消费者
+            Result<?> result = createAndUpdateConsumerOnCluster(cluster, consumer);
+            if (result.isNotOK()) {
+                throw new RuntimeException("create consumer:" + consumer.getName() + " on cluster err!");
+            }
+        } catch (DuplicateKeyException e) {
+            logger.warn("duplicate key:{}", consumer);
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            return Result.getResult(Status.DB_DUPLICATE_KEY).setMessage(consumer.getName() + "已存在");
+        } catch (Exception e) {
+            logger.error("insert err, consumer:{}", consumer, e);
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            return Result.getDBErrorResult(e);
+        }
+        return Result.getOKResult();
+    }
+
+    /**
+     * 创建consumer
+     *
+     * @param mqCluster
+     * @param consumer
+     */
+    public Result<?> createAndUpdateConsumerOnCluster(Cluster mqCluster, Consumer consumer) {
+        Result<?> result = mqAdminTemplate.execute(new MQAdminCallback<Result<?>>() {
+            public Result<?> callback(MQAdminExt mqAdmin) throws Exception {
+                long start = System.currentTimeMillis();
+                Set<String> masterSet = CommandUtil.fetchMasterAddrByClusterName(mqAdmin, mqCluster.getName());
+                SubscriptionGroupConfig subscriptionGroupConfig = new SubscriptionGroupConfig();
+                subscriptionGroupConfig.setGroupName(consumer.getName());
+                for (String addr : masterSet) {
+                    mqAdmin.createAndUpdateSubscriptionGroupConfig(addr, subscriptionGroupConfig);
+                }
+                long end = System.currentTimeMillis();
+                logger.info("create or update consumer use:{}ms, consumer:{}", (end - start),
+                        subscriptionGroupConfig.getGroupName());
+                return Result.getOKResult();
+            }
+
+            @Override
+            public Result<?> exception(Exception e) throws Exception {
+                logger.error("create or update consumer:{} err:{}", consumer.getName(), e.getMessage());
+                return Result.getWebErrorResult(e);
+            }
+
+            public Cluster mqCluster() {
+                return mqCluster;
+            }
+        });
+        // proxy-remoting需要创建重试topic
+        if (result.isOK() && consumer.isProxyRemoting()) {
+            TopicConfig topicConfig = new TopicConfig();
+            topicConfig.setReadQueueNums(1);
+            topicConfig.setWriteQueueNums(1);
+            topicConfig.setTopicName(MixAll.getRetryTopic(consumer.getName()));
+            topicService.createAndUpdateTopicOnCluster(mqCluster, topicConfig);
+        }
+        return result;
+    }
+
+    /**
+     * 删除无用的自动订阅的消费者
+     */
+    public int deleteUnusedAutoSubscribeConsumer() {
+        Set<String> topics = mqCloudConfigHelper.getAutoSubscribeTopics();
+        if (topics == null) {
+            return 0;
+        }
+        int deleteCount = 0;
+        for (String topic : topics) {
+            Result<Topic> topicResult = topicService.queryTopic(topic);
+            if (topicResult.isOK()) {
+                deleteCount += deleteUnusedAutoSubscribeConsumer(topicResult.getResult());
+            }
+        }
+        return deleteCount;
+    }
+
+    /**
+     * 删除无用的自动订阅的消费者
+     */
+    public int deleteUnusedAutoSubscribeConsumer(Topic topic) {
+        List<Consumer> consumers = consumerDao.selectByTid(topic.getId());
+        if (CollectionUtils.isEmpty(consumers)) {
+            return 0;
+        }
+        int deleteCount = 0;
+        ConsumerService consumerService = context.getBean(ConsumerService.class);
+        Cluster cluster = clusterService.getMQClusterById(topic.getClusterId());
+        for (Consumer consumer : consumers) {
+            // 没有过期，跳过
+            if (!mqCloudConfigHelper.isAutoSubscribeConsumerExpire(consumer.getCreateDate().getTime())) {
+                continue;
+            }
+            List<UserConsumer> userConsumers = userConsumerDao.selectByConsumerId(consumer.getId());
+            // 有用户使用该消费者，跳过
+            if (!CollectionUtils.isEmpty(userConsumers)) {
+                continue;
+            }
+            // 消费者链接校验
+            Result<ConsumerConnection> connectionResult = examineConsumerConnectionInfo(consumer.getName(),
+                    cluster, consumer.isProxyRemoting());
+            ConsumerConnection consumerConnection = connectionResult.getResult();
+            if (Status.NO_ONLINE.getKey() == connectionResult.getStatus()) {
+                logger.info("delete unused auto subscribe consumer:{}", consumer.getName());
+                consumerService.deleteConsumer(cluster, consumer, 0L);
+                ++deleteCount;
+            }
+        }
+        return deleteCount;
     }
 }

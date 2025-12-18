@@ -226,6 +226,12 @@ public class MQCloudConfigHelper implements ApplicationEventPublisherAware, Comm
     // 自动化操作最大等待时间，单位毫秒
     private int autoOperateMaxWait = 300 * 1000;
 
+    // 自动订阅的topic列表
+    private Set<String> autoSubscribeTopics;
+
+    // 自动订阅的消费者过期时间，单位毫秒
+    private long autoSubscribeConsumerExpireTime = 24 * 3600 * 1000L;
+
     @Autowired
     private CommonConfigService commonConfigService;
 
@@ -966,6 +972,21 @@ public class MQCloudConfigHelper implements ApplicationEventPublisherAware, Comm
             }
         }
         return false;
+    }
+
+    public boolean isAutoSubscribeTopic(String topic) {
+        if (autoSubscribeTopics == null) {
+            return false;
+        }
+        return autoSubscribeTopics.contains(topic);
+    }
+
+    public Set<String> getAutoSubscribeTopics() {
+        return autoSubscribeTopics;
+    }
+
+    public boolean isAutoSubscribeConsumerExpire(long subscribeTime) {
+        return System.currentTimeMillis() - subscribeTime > autoSubscribeConsumerExpireTime;
     }
 
     /**

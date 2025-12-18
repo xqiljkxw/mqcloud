@@ -9,6 +9,8 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 
+import static com.sohu.tv.mq.util.Constant.CLUSTERING;
+
 /**
  * 小时流量服务
  * 
@@ -36,7 +38,7 @@ public abstract class HourTrafficService extends TrafficService<Traffic> {
      * @return topic size
      */
     public int collectHourTraffic() {
-        Result<List<TopicConsumer>> topicConsumerListResult = topicService.queryTopicConsumer(Consumer.CLUSTERING);
+        Result<List<TopicConsumer>> topicConsumerListResult = topicService.queryTopicConsumer(CLUSTERING);
         if (topicConsumerListResult.isEmpty()) {
             logger.error("cannot get TopicConsumer");
             return 0;

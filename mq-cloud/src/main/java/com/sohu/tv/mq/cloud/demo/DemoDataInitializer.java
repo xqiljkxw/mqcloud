@@ -36,7 +36,7 @@ public class DemoDataInitializer implements CommandLineRunner {
     private TopicService topicService;
 
     @Autowired
-    private UserConsumerService userConsumerService;
+    private ConsumerService consumerService;
 
     @Autowired
     private MQAdminTemplate mqAdminTemplate;
@@ -115,7 +115,7 @@ public class DemoDataInitializer implements CommandLineRunner {
         consumer.setInfo("demo 消费");
         consumer.setTid(topic.getId());
         consumer.setName(topicConsumer);
-        Result<?> createUserConsumerResult = userConsumerService.saveUserConsumer(cluster, userConsumer, consumer);
+        Result<?> createUserConsumerResult = consumerService.createConsumer(cluster, consumer, userConsumer);
         if (createUserConsumerResult.isNotOK()) {
             logger.error("create consumer failed", createUserConsumerResult.getException());
             return;

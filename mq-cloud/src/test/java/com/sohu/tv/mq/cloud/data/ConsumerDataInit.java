@@ -1,7 +1,15 @@
 package com.sohu.tv.mq.cloud.data;
 
-import java.util.List;
-
+import com.sohu.tv.mq.cloud.Application;
+import com.sohu.tv.mq.cloud.bo.Cluster;
+import com.sohu.tv.mq.cloud.bo.Consumer;
+import com.sohu.tv.mq.cloud.bo.Topic;
+import com.sohu.tv.mq.cloud.mq.DefaultInvoke;
+import com.sohu.tv.mq.cloud.mq.MQAdminTemplate;
+import com.sohu.tv.mq.cloud.service.ClusterService;
+import com.sohu.tv.mq.cloud.service.ConsumerService;
+import com.sohu.tv.mq.cloud.service.TopicService;
+import com.sohu.tv.mq.cloud.util.Result;
 import org.apache.rocketmq.client.exception.MQBrokerException;
 import org.apache.rocketmq.remoting.protocol.body.ConsumerConnection;
 import org.apache.rocketmq.remoting.protocol.body.GroupList;
@@ -13,16 +21,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
-import com.sohu.tv.mq.cloud.Application;
-import com.sohu.tv.mq.cloud.bo.Cluster;
-import com.sohu.tv.mq.cloud.bo.Consumer;
-import com.sohu.tv.mq.cloud.bo.Topic;
-import com.sohu.tv.mq.cloud.mq.DefaultInvoke;
-import com.sohu.tv.mq.cloud.mq.MQAdminTemplate;
-import com.sohu.tv.mq.cloud.service.ClusterService;
-import com.sohu.tv.mq.cloud.service.ConsumerService;
-import com.sohu.tv.mq.cloud.service.TopicService;
-import com.sohu.tv.mq.cloud.util.Result;
+import java.util.List;
+
+import static com.sohu.tv.mq.util.Constant.BROADCAST;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = Application.class)
@@ -66,7 +67,7 @@ public class ConsumerDataInit {
                     }
                     Consumer consumer = new Consumer();
                     if (MessageModel.BROADCASTING == conn.getMessageModel()) {
-                        consumer.setConsumeWay(Consumer.BROADCAST);
+                        consumer.setConsumeWay(BROADCAST);
                     }
                     consumer.setName(group);
                     consumer.setTid(topic.getId());
@@ -117,7 +118,7 @@ public class ConsumerDataInit {
                             }
                             Consumer consumer = new Consumer();
                             if (MessageModel.BROADCASTING == conn.getMessageModel()) {
-                                consumer.setConsumeWay(Consumer.BROADCAST);
+                                consumer.setConsumeWay(BROADCAST);
                             }
                             consumer.setName(group);
                             consumer.setTid(topic.getId());

@@ -2,7 +2,6 @@ package com.sohu.tv.mq.cloud.web.controller.admin;
 
 import com.sohu.tv.mq.cloud.bo.*;
 import com.sohu.tv.mq.cloud.service.*;
-import com.sohu.tv.mq.cloud.util.MQCloudConfigHelper;
 import com.sohu.tv.mq.cloud.util.Result;
 import com.sohu.tv.mq.cloud.util.Status;
 import com.sohu.tv.mq.cloud.web.controller.param.ManagerParam;
@@ -53,13 +52,7 @@ public class AdminTopicController extends AdminViewController {
     private CommonConfigService commonConfigService;
 
     @Autowired
-    private MQCloudConfigHelper mqCloudConfigHelper;
-
-    @Autowired
     private ConsumerService consumerService;
-
-    @Autowired
-    private UserConsumerService userConsumerService;
 
     /**
      * @description: 获取主题管理页面列表
@@ -175,7 +168,7 @@ public class AdminTopicController extends AdminViewController {
         List<Consumer> consumerList = consumerListResult.getResult();
         // 创建消费组
         for (Consumer consumer : consumerList) {
-            Result<?> consumerResult = userConsumerService.createAndUpdateConsumerOnCluster(cluster, consumer);
+            Result<?> consumerResult = consumerService.createAndUpdateConsumerOnCluster(cluster, consumer);
             if (consumerResult.isNotOK()) {
                 logger.error("create consumer error, consumer:{}", consumer.getName());
                 return consumerResult;

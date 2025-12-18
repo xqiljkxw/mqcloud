@@ -687,7 +687,7 @@ public class AdminAuditController extends AdminViewController {
         BeanUtils.copyProperties(auditConsumer, consumer);
         consumer.setInfo(audit.getInfo());
         // 保存数据
-        Result<?> saveResult = userConsumerService.saveUserConsumer(cluster, userConsumer, consumer);
+        Result<?> saveResult = consumerService.createConsumer(cluster, consumer, userConsumer);
         if (saveResult.isNotOK()) {
             return saveResult;
         }

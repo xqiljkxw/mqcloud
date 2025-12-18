@@ -10,6 +10,7 @@ import com.sohu.tv.mq.trace.SohuAsyncTraceDispatcher;
 import com.sohu.tv.mq.trace.TraceRocketMQProducer;
 import com.sohu.tv.mq.util.CommonUtil;
 import com.sohu.tv.mq.util.Constant;
+import com.sohu.tv.mq.util.Version;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.ClientConfig;
 import org.apache.rocketmq.client.trace.AsyncTraceDispatcher;
@@ -21,6 +22,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -131,8 +134,9 @@ public abstract class AbstractConfig {
      * 初始化
      */
     protected void init() {
+        Map<String, String> params = initRequestParams();
         for (int i = 1; i <= maxRetryTimesWhenFetchClusterInfo; ++i) {
-            Result<ClusterInfoDTO> result = CommonUtil.fetchClusterInfo(mqCloudDomain, getTopic(), group, role());
+            Result<ClusterInfoDTO> result = CommonUtil.fetchClusterInfo(mqCloudDomain, params);
             if (result.isSuccess()) {
                 clusterInfoDTO = result.getResult();
                 if (clusterInfoDTO == null) {
@@ -465,5 +469,17 @@ public abstract class AbstractConfig {
             configDomain = System.getenv("mqcloud_domain");
         }
         return StringUtils.isNotBlank(configDomain) ? configDomain : defaultDomain;
+    }
+
+    /**
+     * 初始化请求参数
+     */
+    protected Map<String, String> initRequestParams() {
+        Map<String, String> paramMap = new HashMap<>();
+        paramMap.put("topic", topic);
+        paramMap.put("group", group);
+        paramMap.put("role", String.valueOf(role()));
+        paramMap.put("v", Version.get());
+        return paramMap;
     }
 }

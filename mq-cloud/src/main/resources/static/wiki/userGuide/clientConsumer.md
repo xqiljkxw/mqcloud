@@ -393,9 +393,62 @@ consumer.shutdown();
    }
    ```
 
-   ​
+10. <span id="autoSubscribe">自动订阅</span>
 
-   ​
+  如果有动态使用topic的需求（短时间使用，用完就丢弃），可以采用如下方案：
 
-   ​
+  1. 申请一个topic，让管理员配置为动态topic（消费者不用申请，支持自动创建）。
+  2. 生产者发送消息时，指定tag。
+  3. 消费者订阅topic时，指定tag。
+
+  ​
+
+  通过不同的tag来使不同的消费者收到不同的消息，达到动态topic的效果。
+
+  下面是个具体的例子:
+
+  1. 生产者发送消息时指定tag:
+
+     ```
+     producer.send(MQMessage.build("msg1").setTags("tag1"));
+     producer.send(MQMessage.build("msg2").setTags("tag2"));
+     producer.send(MQMessage.build("msg3").setTags("tag3"));
+     ```
+
+  2. 消费者消费时指定tag:
+
+     ```
+     Consumer consumer1 = new Consumer("consumer1", "xxx-topic");
+     consumer1.subscribeTag("tag1");
+     // 建议设置从头消费，否则消费第一次启动从最新的偏移量消费，可能丢失消息
+     consumer1.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
+
+     Consumer consumer2 = new Consumer("consumer2", "xxx-topic");
+     consumer2.subscribeTag("tag2");
+     consumer2.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
+
+     Consumer consumer3 = new Consumer("consumer3", "xxx-topic");
+     consumer3.subscribeTag("tag2")
+              .subscribeTag("tag3");
+     consumer3.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
+     ```
+
+     * consumer1将会收到tag1的消息
+     * consumer2将会收到tag2的消息
+     * consumer3由于订阅了两个tag，将会收到tag2和tag3的消息
+
+     ​
+
+     **注意： consumerGroup和tag对需要保障唯一。** 比如如果存在如下两个订阅实例：
+
+     1. 实例1：consumer1<->tag1
+     2. 实例2：consumer1<->tag2
+
+     会导致消费混乱，consumer1可能无法收到正确的消息。
+
+  ​
+
+  ​
+
+  ​
 

@@ -42,9 +42,13 @@ import org.apache.rocketmq.remoting.protocol.heartbeat.MessageModel;
 
 import java.lang.reflect.*;
 import java.net.HttpURLConnection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
+
+import static org.apache.rocketmq.remoting.protocol.heartbeat.MessageModel.CLUSTERING;
 
 /**
  * rocketmq 消费者
@@ -79,6 +83,8 @@ public class RocketMQConsumer extends AbstractConfig {
 
     // "tag1 || tag2 || tag3"
     private String subExpression = "*";
+
+    private Set<String> tags;
 
     // 是否顺序消费
     private boolean consumeOrderly = false;
@@ -229,7 +235,15 @@ public class RocketMQConsumer extends AbstractConfig {
         if (getClusterInfoDTO().isBroadcast()) {
             consumer.setMessageModel(MessageModel.BROADCASTING);
         }
-        consumer.subscribe(topic, subExpression);
+        if (tags == null) {
+            consumer.subscribe(topic, subExpression);
+        } else {
+            if (tags.size() == 1) {
+                consumer.subscribe(topic, tags.iterator().next());
+            } else {
+                consumer.subscribe(topic, String.join("||", tags));
+            }
+        }
         // 构建消费者对象
         messageConsumer = detectMessageConsumer();
         // 注册顺序或并发消费
@@ -579,6 +593,17 @@ public class RocketMQConsumer extends AbstractConfig {
         this.subExpression = subExpression;
     }
 
+    /**
+     * 订阅tag
+     */
+    public RocketMQConsumer subscribeTag(String tag) {
+        if (tags == null) {
+            tags = new HashSet<>();
+        }
+        tags.add(tag);
+        return this;
+    }
+
     public void setDebug(boolean debug) {
         this.debug = debug;
     }
@@ -746,7 +771,7 @@ public class RocketMQConsumer extends AbstractConfig {
         if (started) {
             return getMQClientInstance().getClientId();
         }
-        if (consumer.getMessageModel() == MessageModel.CLUSTERING) {
+        if (consumer.getMessageModel() == CLUSTERING) {
             consumer.changeInstanceNameToPID();
         }
         return consumer.buildMQClientId();
@@ -910,7 +935,7 @@ public class RocketMQConsumer extends AbstractConfig {
     private IMessageConsumer<?> detectMessageConsumer() {
         if (getConsumerCallback() != null) {
             if (getRedis() != null) {
-                if (MessageModel.CLUSTERING.equals(consumer.getMessageModel())) {
+                if (CLUSTERING.equals(consumer.getMessageModel())) {
                     return new DeduplicateSingleMessageConsumer<>(this);
                 } else {
                     logger.warn("consume message model is broadcasting, cannot use deduplication!");
@@ -1033,5 +1058,17 @@ public class RocketMQConsumer extends AbstractConfig {
 
     public int getConsumeThreadMin() {
         return consumer.getConsumeThreadMin();
+    }
+
+    public void setMessageModel(MessageModel messageModel) {
+        consumer.setMessageModel(messageModel);
+    }
+
+    @Override
+    protected Map<String, String> initRequestParams() {
+        Map<String, String> params = super.initRequestParams();
+        params.put("consumeWay", CLUSTERING == consumer.getMessageModel() ?
+                String.valueOf(Constant.CLUSTERING) : String.valueOf(Constant.BROADCAST));
+        return params;
     }
 }

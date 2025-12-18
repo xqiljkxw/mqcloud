@@ -1,8 +1,6 @@
 package com.sohu.tv.mq.cloud.service;
 
 import com.sohu.tv.mq.cloud.Application;
-import com.sohu.tv.mq.cloud.bo.Cluster;
-import com.sohu.tv.mq.cloud.bo.Consumer;
 import com.sohu.tv.mq.cloud.bo.User;
 import com.sohu.tv.mq.cloud.util.Result;
 import org.junit.Assert;
@@ -38,17 +36,6 @@ public class UserConsumerServiceTest {
         }
         System.out.println(email);
         Assert.assertNotNull(email);
-    }
-
-    @Test
-    public void test(){
-        Cluster cluster = new Cluster();
-        cluster.setId(3);
-        cluster.setName("test-cluster");
-        Consumer consumer = new Consumer();
-        consumer.setName("mqcloud-json-test-consumer");
-        Result result = userConsumerService.createAndUpdateConsumerOnCluster(cluster, consumer);
-        Assert.assertTrue(result.isOK());
     }
 
 }

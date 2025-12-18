@@ -2,10 +2,11 @@ package com.sohu.tv.mq.cloud.web.controller;
 
 import com.sohu.tv.mq.cloud.bo.*;
 import com.sohu.tv.mq.cloud.common.MemoryMQ;
+import com.sohu.tv.mq.cloud.common.util.WebUtil;
 import com.sohu.tv.mq.cloud.service.*;
 import com.sohu.tv.mq.cloud.util.MQCloudConfigHelper;
 import com.sohu.tv.mq.cloud.util.Result;
-import com.sohu.tv.mq.cloud.common.util.WebUtil;
+import com.sohu.tv.mq.cloud.util.Status;
 import com.sohu.tv.mq.cloud.web.controller.param.TopicUserParam;
 import com.sohu.tv.mq.dto.ClusterInfoDTO;
 import com.sohu.tv.mq.stats.dto.ClientStats;
@@ -57,7 +58,7 @@ public class ClusterController {
 
     @Autowired
     private MQCloudConfigHelper mqCloudConfigHelper;
-    
+
     /**
      * 查询topic的cluster，并校验所属关系
      * @param topicParam
@@ -69,12 +70,12 @@ public class ClusterController {
         String ip = WebUtil.getIp(request);
         // 查询topic
         Result<Topic> topicResult = topicService.queryTopic(topicUserParam.getTopic());
-        if(topicResult.isNotOK()) {
+        if (topicResult.isNotOK()) {
             logger.warn("ip:{} topic not exist:{}", ip, topicUserParam);
             return Result.getWebResult(topicResult);
         }
         Topic topic = topicResult.getResult();
-        
+
         // 组装传输对象
         ClusterInfoDTO clusterInfoDTO = new ClusterInfoDTO();
         Cluster mqCluster = clusterService.getMQClusterById(topic.getClusterId());
@@ -82,12 +83,12 @@ public class ClusterController {
         clusterInfoDTO.setVipChannelEnabled(mqCluster.isEnableVipChannel());
         clusterInfoDTO.setTraceEnabled(topic.traceEnabled());
         clusterInfoDTO.setSerializer(topic.getSerializer());
-        
+
         // 校验生产者
-        if(topicUserParam.isProducer()) {
+        if (topicUserParam.isProducer()) {
             // 查询生产者
             Result<UserProducer> userProducerResult = userProducerService.queryUserProducer(topic.getId(), topicUserParam.getGroup());
-            if(userProducerResult.isNotOK()) {
+            if (userProducerResult.isNotOK()) {
                 logger.warn("ip:{} user producer not exist:{}", ip, topicUserParam);
                 return Result.getWebResult(userProducerResult);
             }
@@ -96,10 +97,18 @@ public class ClusterController {
             setAcl(mqCluster, clusterInfoDTO);
             return Result.getResult(clusterInfoDTO);
         }
-        
-        // 查询消费者
-        Result<Consumer> consumerResult = consumerService.queryTopicConsumerByName(topic.getId(), topicUserParam.getGroup());
-        if(consumerResult.isNotOK()) {
+
+        Result<Consumer> consumerResult = null;
+        if (mqCloudConfigHelper.isAutoSubscribeTopic(topic.getName())) {
+            consumerResult = consumerService.queryConsumerByName(topicUserParam.getGroup());
+            // 自动订阅模式下，不存在则创建
+            if (Status.NO_RESULT.getKey() == consumerResult.getStatus()) {
+                consumerResult = createAutoSubscribeConsumer(topic, topicUserParam);
+            }
+        } else {
+            consumerResult = consumerService.queryTopicConsumerByName(topic.getId(), topicUserParam.getGroup());
+        }
+        if (consumerResult.isNotOK()) {
             logger.warn("ip:{} user consumer not exist:{}", ip, topicUserParam);
             return Result.getWebResult(consumerResult);
         }
@@ -116,6 +125,22 @@ public class ClusterController {
         clusterInfoDTO.setProtocol(consumer.getProtocol());
         setAcl(mqCluster, clusterInfoDTO);
         return Result.getResult(clusterInfoDTO);
+    }
+
+    public Result createAutoSubscribeConsumer(Topic topic, TopicUserParam topicUserParam) {
+        Consumer consumer = new Consumer();
+        consumer.setName(topicUserParam.getGroup());
+        consumer.setConsumeWay(topicUserParam.getConsumeWay());
+        consumer.setTid(topic.getId());
+        if (topic.traceEnabled()) {
+            consumer.setTraceEnabled(1);
+        }
+        Cluster cluster = clusterService.getMQClusterById(topic.getClusterId());
+        Result result = consumerService.createConsumer(cluster, consumer, null);
+        if (result.isNotOK()) {
+            return result;
+        }
+        return Result.getResult(consumer);
     }
 
     private void setAcl(Cluster cluster, ClusterInfoDTO clusterInfoDTO) {

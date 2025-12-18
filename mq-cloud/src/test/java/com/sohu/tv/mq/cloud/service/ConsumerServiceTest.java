@@ -5,6 +5,7 @@ import com.sohu.tv.mq.cloud.bo.Cluster;
 import com.sohu.tv.mq.cloud.bo.ConsumeStatsExt;
 import com.sohu.tv.mq.cloud.bo.Consumer;
 import com.sohu.tv.mq.cloud.bo.Topic;
+import com.sohu.tv.mq.cloud.util.Result;
 import org.apache.rocketmq.remoting.protocol.body.ConsumerRunningInfo;
 import org.junit.Assert;
 import org.junit.Test;
@@ -17,6 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static com.sohu.tv.mq.util.Constant.BROADCAST;
+
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = Application.class)
@@ -28,6 +31,9 @@ public class ConsumerServiceTest {
     @Autowired
     private ClusterService clusterService;
 
+    @Autowired
+    private TopicService topicService;
+
     @Test
     public void test() {
         Topic topic = new Topic();
@@ -37,7 +43,7 @@ public class ConsumerServiceTest {
         Consumer consumer = new Consumer();
         consumer.setId(1);
         consumer.setName("api-dubbo-consumer");
-        consumer.setConsumeWay(Consumer.BROADCAST);
+        consumer.setConsumeWay(BROADCAST);
         consumerList.add(consumer);
         Map<Long, List<ConsumeStatsExt>> map = consumerService.fetchBroadcastingConsumeProgress(clusterService.getMQClusterById(2), topic.getName(), consumerList);
         System.out.println(map);
@@ -54,5 +60,16 @@ public class ConsumerServiceTest {
         String consumer = "mqcloud5-test-consumer";
         Map<String, ConsumerRunningInfo> map = consumerService.getConsumerRunningInfo(cluster, consumer, true);
         Assert.assertNotNull(map);
+    }
+
+    @Test
+    public void testCreateConsumer() {
+        Topic topic = topicService.queryTopic("mqcloud-json-test-topic").getResult();
+        Consumer consumer = new Consumer();
+        consumer.setName("mqcloud-json-test-consumer2");
+        consumer.setTid(topic.getId());
+        Cluster cluster = clusterService.getMQClusterById(topic.getClusterId());
+        Result result = consumerService.createConsumer(cluster, consumer, null);
+        Assert.assertTrue(result.isOK());
     }
 }

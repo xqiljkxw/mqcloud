@@ -4,6 +4,9 @@ import com.sohu.tv.mq.util.MQProtocol;
 
 import java.util.Date;
 
+import static com.sohu.tv.mq.util.Constant.BROADCAST;
+import static com.sohu.tv.mq.util.Constant.CLUSTERING;
+
 /**
  * Consumer对象
  * 
@@ -12,11 +15,6 @@ import java.util.Date;
  * @date 2018年6月12日
  */
 public class Consumer {
-    // 广播方式消费
-    public static int CLUSTERING = 0;
-    // 集群方式消费
-    public static int BROADCAST = 1;
-
     // id
     private long id;
     // topic id
